@@ -77,8 +77,8 @@ const BlueprintSection = ({ result, inputs, onActiveChange }) => {
         roadLabel:          inputs.roadLabel,
         variant:            current.variant,
         extraDoors:         current.extraDoors,
+        extraRoads:         inputs.extraRoads || [],
       });
-
       if (res.applied) {
         const next = {
           label:      `Edit ${versions.length}`,
@@ -162,7 +162,8 @@ const BlueprintSection = ({ result, inputs, onActiveChange }) => {
             Type what you want to change or add, then press Regenerate.
             Changes apply to the plan you are looking at.
             You can change bedrooms, bathrooms, kitchens, visitor halls and extra rooms,
-            add a door on a wall of a room, or ask for the rooms to be arranged in a different way.
+            make a room bigger, smaller or square, add a door on a wall of a room,
+            or ask for the rooms to be arranged in a different way.
           </div>
           <textarea
             value={text}
@@ -170,7 +171,7 @@ const BlueprintSection = ({ result, inputs, onActiveChange }) => {
             maxLength={500}
             rows={3}
             disabled={loading}
-            placeholder="e.g. Add a door on the south wall of Visitor's Hall 1"
+            placeholder="e.g. Make the kitchen square and add a door on the south wall of Visitor's Hall 1"
             style={{
               width: "100%", padding: "11px 14px", boxSizing: "border-box",
               border: "1.5px solid #D6EAF8", borderRadius: 10, fontSize: 13,

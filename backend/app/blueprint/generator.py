@@ -23,6 +23,9 @@ from app.blueprint.room_config import (
 from app.blueprint.treemap import squarify
 from app.blueprint.footprint import get_footprint
 from app.blueprint.corridor_layout import layout_with_corridor
+from app.blueprint.extra_roads import (
+    clean_extra_roads, shift_for_extra_roads, axis_limits, draw_extra_roads,
+)
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "generated_blueprints"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -42,7 +45,7 @@ STRUCTURE_LINEWIDTH = {
 
 # Bump this number whenever the drawing code changes, so old cached
 # images are not reused.
-RENDER_VERSION = 2
+RENDER_VERSION = 3
 
 
 def _door_key(extra_doors) -> list:
@@ -57,14 +60,14 @@ def _door_key(extra_doors) -> list:
 def _floor_cache_key(room_counts: dict, purpose: str, layout_type: str,
                        land_length_m: float, land_width_m: float,
                        footprint_area_sqm: float, variant: int,
-                       extra_doors=None) -> str:
+                       extra_doors=None, road_sides=None) -> str:
     """Deterministic key so identical floor configs reuse one image
     instead of re-rendering the same floor plan multiple times."""
     payload = json.dumps({
         "rooms": room_counts, "purpose": purpose, "layout": layout_type,
         "L": round(land_length_m, 2), "W": round(land_width_m, 2),
         "area": round(footprint_area_sqm, 2), "variant": variant,
-        "doors": _door_key(extra_doors), "v": RENDER_VERSION,
+        "doors": _door_key(extra_doors), "roads": road_sides or [], "v": RENDER_VERSION,
     }, sort_keys=True)
     return hashlib.md5(payload.encode()).hexdigest()[:12]
 
@@ -431,10 +434,14 @@ def generate_floor_blueprint(
     floor_label: str,
     variant: int = 0,
     extra_doors: list[dict] | None = None,
+    extra_roads: list[dict] | None = None,
 ) -> str:
+    roads = clean_extra_roads(extra_roads)
+    road_sides = sorted(r["side"] for r in roads)
+
     cache_key = _floor_cache_key(room_counts, purpose, layout_type,
                                    land_length_m, land_width_m, footprint_area_sqm,
-                                   variant, extra_doors)
+                                   variant, extra_doors, road_sides)
     filename = f"floor_{cache_key}.png"
     filepath = OUTPUT_DIR / filename
 
@@ -471,6 +478,8 @@ def generate_floor_blueprint(
                              fill=False, edgecolor="#AAB7B8", linewidth=1, linestyle="dashed", zorder=1))
 
     offset_x, offset_y = _compute_offsets(land_length_m, land_width_m, footprint)
+    offset_x, offset_y = shift_for_extra_roads(footprint, offset_x, offset_y,
+                                               land_length_m, land_width_m, road_sides)
     _draw_footprint_outline(ax, footprint, structure_type, offset_x, offset_y)
     _draw_rooms(ax, placed_rooms, layout_type, offset_x, offset_y, inches_per_m)
     if corridor_rect:
@@ -483,9 +492,11 @@ def generate_floor_blueprint(
         _draw_extra_doors(ax, placed_rooms, extra_doors, connectors, offset_x, offset_y)
     _draw_north_arrow(ax, land_length_m, land_width_m)
     _draw_road_marker(ax, land_length_m, road_label)
+    draw_extra_roads(ax, land_length_m, land_width_m, roads)
 
-    ax.set_xlim(-1, land_length_m + 1)
-    ax.set_ylim(-2, land_width_m + 2)
+    xmin, xmax, ymin, ymax = axis_limits(land_length_m, land_width_m, road_sides)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
     ax.set_aspect("equal")
     ax.axis("off")
     ax.set_title(f"{floor_label} — {layout_type} · {structure_type}",
@@ -508,6 +519,7 @@ def generate_all_floor_blueprints(
     road_label: str,
     variant: int = 0,
     extra_doors: list[dict] | None = None,
+    extra_roads: list[dict] | None = None,
 ) -> dict:
     result = {}
     for i, room_counts in enumerate(per_floor_breakdown):
@@ -534,6 +546,7 @@ def generate_all_floor_blueprints(
             floor_label=floor_label,
             variant=variant,
             extra_doors=floor_doors,
+            extra_roads=extra_roads,
         )
         result[floor_num] = filename
 

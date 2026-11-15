@@ -5,6 +5,7 @@ import LandDetailsForm from "./LandDetailsForm";
 import { geocodeAddress, reverseGeocode } from "../services/nominatim";
 import ResultsPage from "./ResultsPage";
 import { predictPlan } from "../services/api";
+import { isInJaffna, JAFFNA_CENTER } from "../utils/jaffnaBounds";
 
 const HISTORY_KEY = "ai_arch_location_history";
 const MAX_HISTORY = 5;
@@ -65,6 +66,19 @@ const Home = () => {
       async (position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
+
+        // Laptops often guess a wrong place (for example Colombo).
+        // If the point is outside Jaffna, do not open the map there.
+        if (!isInJaffna(lat, lng)) {
+          setGpsLoading(false);
+          setError(
+            "Your device says you are outside Jaffna District " +
+            `(${lat.toFixed(3)}, ${lng.toFixed(3)}, about ${Math.round(position.coords.accuracy)} m accuracy). ` +
+            "Laptop location can be wrong. Please type your land address below."
+          );
+          return;
+        }
+
         try {
           const addr = await reverseGeocode(lat, lng);
           setMapCoords({ lat, lng });
@@ -93,8 +107,8 @@ const Home = () => {
     setError("");
     setLoading(true);
     try {
-      const result = await geocodeAddress(address);
-      setMapCoords(result);
+      const found = await geocodeAddress(address);
+      setMapCoords(found);
       setConfirmed(null);
     } catch (e) {
       setError(e.message);
@@ -127,63 +141,63 @@ const Home = () => {
   };
 
   const handleFormSubmit = async (data) => {
-  setSubmitting(true);
-  try {
-    const res = await predictPlan(data);
-    setResult(res);
-    setSubmittedInputs(data);
-  } catch (e) {
-    alert(e.message);
-  } finally {
-    setSubmitting(false);
-  }
-};
+    setSubmitting(true);
+    try {
+      const res = await predictPlan(data);
+      setResult(res);
+      setSubmittedInputs(data);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // ── Land details form screen ──────────────────────────────────────────────
   if (showForm && confirmed) {
-  return (
-    <>
-      <div style={{ display: result ? "none" : "block" }}>
-        <LandDetailsForm
-          location={confirmed}
-          onBack={() => setShowForm(false)}
-          onSubmit={handleFormSubmit}
-        />
-      </div>
-
-      {result && (
-        <ResultsPage
-          result={result}
-          inputs={submittedInputs}
-          address={confirmed.address}
-          onEdit={() => setResult(null)}
-          onNewPlan={() => {
-            setResult(null);
-            setShowForm(false);
-            setConfirmed(null);
-          }}
-        />
-      )}
-
-      {submitting && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(26,60,94,0.85)",
-          display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          color: "white", fontFamily: "Arial, sans-serif", zIndex: 1000,
-        }}>
-          <div style={{ fontSize: 36 }}>🏗️</div>
-          <div style={{ fontWeight: "bold", marginTop: 10 }}>
-            Generating your plan...
-          </div>
-          <div style={{ fontSize: 12, marginTop: 6, color: "#AED6F1" }}>
-            This can take a few seconds
-          </div>
+    return (
+      <>
+        <div style={{ display: result ? "none" : "block" }}>
+          <LandDetailsForm
+            location={confirmed}
+            onBack={() => setShowForm(false)}
+            onSubmit={handleFormSubmit}
+          />
         </div>
-      )}
-    </>
-  );
-}
+
+        {result && (
+          <ResultsPage
+            result={result}
+            inputs={submittedInputs}
+            address={confirmed.address}
+            onEdit={() => setResult(null)}
+            onNewPlan={() => {
+              setResult(null);
+              setShowForm(false);
+              setConfirmed(null);
+            }}
+          />
+        )}
+
+        {submitting && (
+          <div style={{
+            position: "fixed", inset: 0, background: "rgba(26,60,94,0.85)",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            color: "white", fontFamily: "Arial, sans-serif", zIndex: 1000,
+          }}>
+            <div style={{ fontSize: 36 }}>🏗️</div>
+            <div style={{ fontWeight: "bold", marginTop: 10 }}>
+              Generating your plan...
+            </div>
+            <div style={{ fontSize: 12, marginTop: 6, color: "#AED6F1" }}>
+              This can take a few seconds
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   // ── Full screen map ───────────────────────────────────────────────────────
   if (mapCoords) {
@@ -342,7 +356,26 @@ const Home = () => {
               cursor:       loading ? "not-allowed" : "pointer",
             }}
           >
-            {loading ? "Searching..." : "🔍 Find on Map"}
+              {loading ? "Searching..." : "🔍 Find on Map"}
+          </button>
+
+          {/* NEW BUTTON: paste here */}
+          <button
+            onClick={() => setMapCoords(JAFFNA_CENTER)}
+            style={{
+              width:        "100%",
+              marginTop:    10,
+              padding:      "12px 0",
+              background:   "white",
+              color:        "#1A3C5E",
+              border:       "1.5px solid #1A3C5E",
+              borderRadius: 10,
+              fontSize:     14,
+              fontWeight:   "bold",
+              cursor:       "pointer",
+            }}
+          >
+            🗺️ Open Map at Jaffna
           </button>
         </div>
       )}

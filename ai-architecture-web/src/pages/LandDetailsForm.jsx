@@ -307,6 +307,8 @@ const LandDetailsForm = ({ location, onSubmit, onBack }) => {
   const [roadFrontage, setRoadFrontage] = useState("");
   const [landShape,  setLandShape]  = useState("Rectangular");
   const [roadType,   setRoadType]   = useState(ROAD_TYPES[2]);
+  const [secondRoadSide, setSecondRoadSide] = useState("left");
+  const [secondRoadType, setSecondRoadType] = useState(ROAD_TYPES[2]);
 
   // Step 2 — Building
   const [purpose, setPurpose] = useState("House");
@@ -466,7 +468,9 @@ const LandDetailsForm = ({ location, onSubmit, onBack }) => {
       floors,
       layoutMode: floors === 1 ? "same" : layoutMode,
       rooms,
-      roadFrontage: roadFrontage || null,
+      extraRoads: landShape === "Corner Plot"
+        ? [{ side: secondRoadSide, width: secondRoadType.value, label: secondRoadType.label }]
+        : [],
       notes: description.trim(),
     });
   };
@@ -633,7 +637,7 @@ const LandDetailsForm = ({ location, onSubmit, onBack }) => {
             }}>⚠️ {errors.area}</div>
           )}
 
-          <Field label="Land Shape">
+          <Field label="Land Shape" hint="Land touches two roads? Choose Corner Plot">
             <select value={landShape} onChange={(e) => setLandShape(e.target.value)} style={selectStyle}>
               {LAND_SHAPES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -655,6 +659,48 @@ const LandDetailsForm = ({ location, onSubmit, onBack }) => {
               ))}
             </select>
           </Field>
+
+          {landShape === "Corner Plot" && (
+            <div style={{
+              background: "#FEF9E7", border: "1.5px solid #F0A500",
+              borderRadius: 12, padding: 14, marginBottom: 18,
+            }}>
+              <div style={{ fontWeight: "bold", color: "#1A3C5E", fontSize: 13, marginBottom: 4 }}>
+                🛣️ Second road
+              </div>
+              <div style={{ fontSize: 11, color: "#888", marginBottom: 10 }}>
+                Stand on the main road and face your land. Where is the second road?
+              </div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                {[
+                  { key: "left",  label: "Left side" },
+                  { key: "right", label: "Right side" },
+                  { key: "top",   label: "Back side" },
+                ].map((opt) => (
+                  <button key={opt.key} onClick={() => setSecondRoadSide(opt.key)} style={{
+                    flex: 1, padding: "10px 0", border: "2px solid",
+                    borderColor: secondRoadSide === opt.key ? "#1A3C5E" : "#D6EAF8",
+                    borderRadius: 10,
+                    background: secondRoadSide === opt.key ? "#1A3C5E" : "white",
+                    color: secondRoadSide === opt.key ? "white" : "#888",
+                    fontWeight: "bold", cursor: "pointer", fontSize: 13,
+                  }}>{opt.label}</button>
+                ))}
+              </div>
+              <select
+                value={secondRoadType.label}
+                onChange={(e) => {
+                  const found = ROAD_TYPES.find((r) => r.label === e.target.value);
+                  if (found) setSecondRoadType(found);
+                }}
+                style={selectStyle}
+              >
+                {ROAD_TYPES.map((r) => (
+                  <option key={r.label} value={r.label}>{r.label} (~{r.value}m wide)</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
 
@@ -852,6 +898,10 @@ const LandDetailsForm = ({ location, onSubmit, onBack }) => {
           <ReviewRow label="Area"      value={`${areaSqm.toFixed(1)} sqm / ${areaPerch.toFixed(2)} perch`} />
           <ReviewRow label="Shape"     value={landShape} />
           <ReviewRow label="Road Type" value={`${roadType.label} (~${roadType.value}m)`} />
+          {landShape === "Corner Plot" && (
+            <ReviewRow label="Second Road"
+              value={`${secondRoadSide === "top" ? "back" : secondRoadSide} side · ${secondRoadType.label}`} />
+          )}
 
           <SectionTitle>🏠 Building</SectionTitle>
           <ReviewRow label="Purpose" value={purpose} />

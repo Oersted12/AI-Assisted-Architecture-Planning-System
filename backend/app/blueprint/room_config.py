@@ -5,6 +5,13 @@ Defines typical real-world room sizes (in sqm) and scales them to fit
 whatever floor area is actually available. This keeps room proportions
 looking sensible whether the plot is tiny or huge, rather than using
 made-up fixed sizes that might not add up to the real footprint.
+
+Owner tweaks (bigger / smaller / square) arrive inside the floor data as
+"roomTweaks", for example:
+    {"kitchen:1": {"square": True}, "visitor_hall:1": {"size": 1.3}}
+"size" is a multiplier on the typical area. Because all rooms are scaled to
+fit the footprint afterwards, a bigger room automatically makes the others
+a little smaller.
 """
 
 # ── Typical room sizes (sqm) — rough real-world averages ─────────────────────
@@ -20,14 +27,33 @@ TYPICAL_ROOM_AREA = {
 # produces a room too small to draw meaningfully (e.g. a 0.5 sqm "bathroom").
 MIN_ROOM_AREA = 2.5
 
+# Limits for the owner's "make it bigger / smaller" multiplier
+SIZE_MIN = 0.4
+SIZE_MAX = 2.5
+
+
+def _tweak_for(tweaks: dict, room_type: str, number: int) -> dict:
+    tweak = tweaks.get(f"{room_type}:{number}")
+    return tweak if isinstance(tweak, dict) else {}
+
+
+def _size_factor(tweak: dict) -> float:
+    try:
+        factor = float(tweak.get("size", 1.0))
+    except (TypeError, ValueError):
+        factor = 1.0
+    return max(SIZE_MIN, min(SIZE_MAX, factor))
+
 
 def build_room_list(room_counts: dict) -> list[dict]:
     """
     room_counts: {"bedrooms": int, "bathrooms": int, "kitchens": int,
-                  "visitorHalls": int, "extraRooms": int}
+                  "visitorHalls": int, "extraRooms": int,
+                  "roomTweaks": {...}   # optional}
 
     Returns a flat list of individual room dicts:
-        [{"type": "bedroom", "label": "Bedroom 1", "target_area": 12.0}, ...]
+        [{"type": "bedroom", "label": "Bedroom 1", "target_area": 12.0,
+          "square": False}, ...]
     """
     mapping = [
         ("bedroom",      room_counts.get("bedrooms", 0),     "Bedroom"),
@@ -37,14 +63,20 @@ def build_room_list(room_counts: dict) -> list[dict]:
         ("extra_room",   room_counts.get("extraRooms", 0),    "Extra Room"),
     ]
 
+    tweaks = room_counts.get("roomTweaks")
+    if not isinstance(tweaks, dict):
+        tweaks = {}
+
     rooms = []
     for room_type, count, label in mapping:
         for i in range(count):
             suffix = f" {i + 1}" if count > 1 else ""
+            tweak = _tweak_for(tweaks, room_type, i + 1)
             rooms.append({
                 "type": room_type,
                 "label": f"{label}{suffix}",
-                "target_area": TYPICAL_ROOM_AREA[room_type],
+                "target_area": TYPICAL_ROOM_AREA[room_type] * _size_factor(tweak),
+                "square": bool(tweak.get("square")),
             })
     return rooms
 

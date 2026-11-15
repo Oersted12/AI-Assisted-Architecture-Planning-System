@@ -4,12 +4,23 @@ Corridor-based layout strategies. Every strategy guarantees each room
 touches a corridor — either the main corridor or a small spur corridor
 — directly. No room is ever reachable only by walking through another
 room, including stacked small rooms sharing one column.
+
+Rooms marked room["square"] = True get their own slot (never stacked) and
+a slot length equal to the row depth, so the room comes out square, or as
+close to square as the row allows.
 """
 
 CORRIDOR_THICKNESS_M = 1.4
 SPUR_THICKNESS_M = 0.9  # width of a connector corridor for stacked rooms
 
 SMALL_ROOM_RATIO = 0.55
+
+# A square room may be at most this much wider or narrower than its
+# normal share of the row. Keeps the other rooms from being squeezed.
+SQUARE_MIN_RATIO = 0.5
+SQUARE_MAX_RATIO = 2.5
+# All square rooms together may use at most this share of the row.
+SQUARE_MAX_ROW_SHARE = 0.7
 
 
 def _split_rooms_by_area(rooms: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -39,13 +50,58 @@ def _group_small_rooms(rooms: list[dict]) -> list[list[dict]]:
         return []
     avg_area = sum(r["target_area"] for r in rooms) / len(rooms)
     threshold = avg_area * SMALL_ROOM_RATIO
-    normal = [r for r in rooms if r["target_area"] >= threshold]
-    small = [r for r in rooms if r["target_area"] < threshold]
+    # Square rooms always get their own slot (they are never stacked)
+    normal = [r for r in rooms if r["target_area"] >= threshold or r.get("square")]
+    small = [r for r in rooms if r["target_area"] < threshold and not r.get("square")]
     slots = [[r] for r in normal]
     if small:
         for i in range(0, len(small), 2):
             slots.append(small[i:i + 2])
     return slots
+
+
+def _slot_lengths(slots: list[list[dict]], slot_areas: list[float], total_area: float,
+                    length: float, cross: float) -> list[float]:
+    """
+    How long each slot is along the row.
+      length = total length of the row (width for horizontal rows, depth for vertical)
+      cross  = the other side of the row (depth for horizontal rows, width for vertical)
+
+    Normal slots share the length by area. A slot holding one "square" room
+    gets length = cross, so the room is square. Other slots share what is left.
+    """
+    base = [length * a / total_area for a in slot_areas]
+    is_square = [len(s) == 1 and bool(s[0].get("square")) for s in slots]
+    if not any(is_square):
+        return base
+
+    out = list(base)
+    for i, sq in enumerate(is_square):
+        if sq:
+            out[i] = min(max(cross, SQUARE_MIN_RATIO * base[i]), SQUARE_MAX_RATIO * base[i])
+
+    other_idx = [i for i, sq in enumerate(is_square) if not sq]
+    square_total = sum(out[i] for i, sq in enumerate(is_square) if sq)
+
+    if not other_idx:
+        # Only square rooms in this row: they must fill the row
+        k = length / square_total
+        return [v * k for v in out]
+
+    # Keep some room for the other rooms
+    max_square_total = SQUARE_MAX_ROW_SHARE * length
+    if square_total > max_square_total:
+        k = max_square_total / square_total
+        for i, sq in enumerate(is_square):
+            if sq:
+                out[i] *= k
+        square_total = max_square_total
+
+    other_base = sum(base[i] for i in other_idx)
+    rest = length - square_total
+    for i in other_idx:
+        out[i] = rest * base[i] / other_base
+    return out
 
 
 def _layout_single_row(rooms: list[dict], x: float, y: float, width: float, depth: float,
@@ -68,11 +124,12 @@ def _layout_single_row(rooms: list[dict], x: float, y: float, width: float, dept
     if total_area <= 0:
         return [], []
 
+    slot_widths = _slot_lengths(slots, slot_areas, total_area, length=width, cross=depth)
+
     placed = []
     spur_rects = []
     offset = 0.0
-    for slot, slot_area in zip(slots, slot_areas):
-        slot_width = width * (slot_area / total_area)
+    for slot, slot_width in zip(slots, slot_widths):
 
         if len(slot) == 1:
             slot[0]["rect"] = {"x": x + offset, "y": y, "width": slot_width, "height": depth}
@@ -119,11 +176,12 @@ def _layout_single_row_vertical(rooms: list[dict], x: float, y: float, width: fl
     if total_area <= 0:
         return [], []
 
+    slot_heights = _slot_lengths(slots, slot_areas, total_area, length=depth, cross=width)
+
     placed = []
     spur_rects = []
     offset = 0.0
-    for slot, slot_area in zip(slots, slot_areas):
-        slot_height = depth * (slot_area / total_area)
+    for slot, slot_height in zip(slots, slot_heights):
 
         if len(slot) == 1:
             slot[0]["rect"] = {"x": x, "y": y + offset, "width": width, "height": slot_height}

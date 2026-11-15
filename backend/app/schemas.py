@@ -16,6 +16,7 @@ class RoomConfig(BaseModel):
     visitorHalls: int = 0
     extraRooms: int = 0
     extraRoomNote: str = ""
+    roomTweaks: Dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Rooms payload — discriminated by `type`, matching layoutMode logic ───────
@@ -49,12 +50,19 @@ Rooms = Union[RoomsSame, RoomsStandardWithOverrides, RoomsPerFloor]
 
 
 # ── Main prediction request ───────────────────────────────────────────────────
+class ExtraRoad(BaseModel):
+    side: Literal["left", "right", "top"]
+    width: float = 6.0
+    label: str = "Extra road"
+
+
 class PredictRequest(BaseModel):
     # Location (from MapPicker confirm)
     lat: float
     lng: float
     address: str
     roadFrontage: float | None = None
+    extraRoads: List[ExtraRoad] = Field(default_factory=list, max_length=3)
 
     # Land details (Step 1)
     landLength: float          # metres, already converted from ft if needed
@@ -115,4 +123,5 @@ class RegenerateBlueprintRequest(BaseModel):
     groundFloorAreaSqm: float
     roadLabel: str
     perFloorBreakdown: List[RoomConfig]
+    extraRoads: List[Dict[str, Any]] = Field(default_factory=list)
     variant: int = 0

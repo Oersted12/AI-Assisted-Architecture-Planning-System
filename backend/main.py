@@ -8,8 +8,6 @@ Run with:
     uvicorn main:app --reload --host 0.0.0.0 --port 8000
 """
 
-from urllib import request
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -21,7 +19,7 @@ from app.ml_service import ml_service
 from app.blueprint.generator import generate_all_floor_blueprints, OUTPUT_DIR
 from app.schemas import RegenerateBlueprintRequest
 from app.gemini_service import generate_explanation
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from app.blueprint_edit import parse_instruction, apply_changes, merge_doors
 from pydantic import BaseModel
 from fastapi.responses import Response
@@ -71,6 +69,7 @@ def predict(request: PredictRequest):
                 land_width_m=request.landWidth,
                 ground_floor_area_sqm=result["ground_floor_area_sqm"],
                 road_label=request.roadLabel,
+                extra_roads=[r.model_dump() for r in request.extraRoads],
             )
             blueprints = {
                 floor_num: f"/blueprints/{filename}"
@@ -113,6 +112,7 @@ def regenerate_blueprint(request: RegenerateBlueprintRequest):
             ground_floor_area_sqm=request.groundFloorAreaSqm,
             road_label=request.roadLabel,
             variant=request.variant % 3,
+            extra_roads=request.extraRoads,
         )
         return {
             "blueprints": {fn: f"/blueprints/{name}" for fn, name in blueprint_files.items()},
@@ -139,7 +139,6 @@ def download_pdf(request: PdfRequest):
         raise HTTPException(status_code=500, detail=f"PDF creation failed: {e}")
 
 
-@app.post("/edit-blueprint")
 class EditBlueprintRequest(BaseModel):
     instruction: str
     perFloorBreakdown: List[Dict[str, Any]]
@@ -152,6 +151,7 @@ class EditBlueprintRequest(BaseModel):
     roadLabel: str
     variant: int = 0
     extraDoors: List[Dict[str, Any]] = []
+    extraRoads: List[Dict[str, Any]] = []
 
 
 @app.post("/edit-blueprint")
@@ -190,6 +190,7 @@ def edit_blueprint(request: EditBlueprintRequest):
             road_label=request.roadLabel,
             variant=variant_used,
             extra_doors=all_doors,
+            extra_roads=request.extraRoads,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Blueprint generation failed: {e}")

@@ -1,16 +1,18 @@
 # backend/app/blueprint_edit.py
 """
 Turns a free-text change request ("add one bathroom", "I need a prayer room
-upstairs") into safe room-count changes so the blueprint can be regenerated.
+upstairs", "make the kitchen square") into safe changes so the blueprint can
+be regenerated.
 
 Gemini only READS the request and suggests changes. Every change is checked
-here (allowed fields, floor numbers, maximum counts) before it is used.
+here (allowed fields, floor numbers, maximum counts, known rooms) before it
+is used.
 """
 
 import json
 import re
 
-from app.gemini_service import _client, MODEL_NAME, _clean_text
+from app.gemini_service import _client, MODEL_NAME, _clean_text, ENGLISH_ONLY
 
 # Door requests: which room types exist, which count field they use, and the walls
 ROOM_TYPE_FIELD = {
@@ -38,6 +40,20 @@ LIMITS = {
     "extraRooms": 8,
 }
 
+# Room size and shape requests.
+# A size word multiplies the room's current size factor (so asking twice
+# makes it bigger twice). The factor stays between SIZE_MIN and SIZE_MAX.
+SIZE_STEPS = {
+    "larger": 1.3,
+    "much_larger": 1.7,
+    "smaller": 1 / 1.3,
+    "much_smaller": 0.6,
+}
+SIZE_VALUES = set(SIZE_STEPS) | {"reset"}
+SHAPE_VALUES = {"square", "reset"}
+SIZE_MIN = 0.4
+SIZE_MAX = 2.5
+
 
 def _build_prompt(instruction: str, breakdown: list) -> str:
     lines = []
@@ -52,7 +68,7 @@ def _build_prompt(instruction: str, breakdown: list) -> str:
         )
     rooms = "\n".join(lines)
 
-    return f"""You change room counts in a building plan.
+    return f"""You change room counts, room sizes and room shapes in a building plan.
 The building has {len(breakdown)} floor(s). Floor 1 is the ground floor.
 
 Current rooms:
@@ -67,6 +83,7 @@ Reply with ONLY this JSON and nothing else:
  "extra_note": "",
  "rearrange": false,
  "doors": [{{"floor": 1, "room_type": "visitor_hall", "index": 1, "wall": "south"}}],
+ "rooms": [{{"floor": 1, "room_type": "kitchen", "index": 1, "size": "", "shape": "square"}}],
  "summary": "one short sentence in English",
  "unsupported": ""}}
 
@@ -86,9 +103,18 @@ Rules:
   wall is north, south, east or west. On the plan, north is the top of the page,
   south is the bottom (the road side), east is the right and west is the left.
   Leave "doors" as [] when no door is requested.
-- If any part of the request cannot be done with these fields (room size,
-  exact room position such as "kitchen on the left", windows, colours,
-  materials), explain briefly in "unsupported". Otherwise leave it "".
+- If the owner asks for a door but does not say which room, leave "doors" as []
+  and write "Please say which room the door is for." in "unsupported".
+- rooms: use this when the owner asks to change the size or the shape of a room.
+  room_type, index and floor work the same way as in doors (floor may also be "all").
+  size is one of: larger, much_larger, smaller, much_smaller, reset, or "" for no change.
+  shape is "square", "reset" (back to a normal shape) or "" for no change.
+  For a comparison such as "hall 1 is larger than hall 2", make hall 1 "larger"
+  and do not list hall 2.
+  Leave "rooms" as [] when no size or shape change is requested.
+- If any part of the request cannot be done with these fields (exact room
+  position such as "kitchen on the left", exact sizes in metres, windows,
+  colours, materials), explain briefly in "unsupported". Otherwise leave it "".
 - Write only in English."""
 
 
@@ -109,7 +135,10 @@ def parse_instruction(instruction: str, breakdown: list) -> dict:
     response = _client.models.generate_content(
         model=MODEL_NAME,
         contents=_build_prompt(instruction, breakdown),
-        config={"response_mime_type": "application/json"},
+        config={
+            "response_mime_type": "application/json",
+            "system_instruction": ENGLISH_ONLY,
+        },
     )
     return _parse_json(response.text)
 
@@ -147,6 +176,102 @@ def _valid_doors(parsed: dict, breakdown: list):
             continue
         doors.append({"floor": floor, "room_type": room_type, "index": index, "wall": wall})
     return doors, problems
+
+
+def _valid_room_tweaks(parsed: dict, breakdown: list):
+    """Check the suggested size/shape changes. Returns (tweaks, problems)."""
+    tweaks, problems = [], []
+    suggested = parsed.get("rooms")
+    if not isinstance(suggested, list):
+        return tweaks, problems
+
+    for item in suggested[:10]:
+        if not isinstance(item, dict):
+            continue
+        room_type = item.get("room_type")
+        if room_type not in ROOM_TYPE_FIELD:
+            continue
+
+        size = item.get("size") or ""
+        shape = item.get("shape") or ""
+        if size not in SIZE_VALUES:
+            size = ""
+        if shape not in SHAPE_VALUES:
+            shape = ""
+        if not size and not shape:
+            continue
+
+        try:
+            index = int(item.get("index"))
+        except (TypeError, ValueError):
+            continue
+
+        floor = item.get("floor")
+        if isinstance(floor, str) and floor.strip().lower() == "all":
+            floors = list(range(1, len(breakdown) + 1))
+        else:
+            try:
+                floors = [int(floor)]
+            except (TypeError, ValueError):
+                continue
+
+        matched = False
+        for f in floors:
+            if not 1 <= f <= len(breakdown):
+                continue
+            available = int(breakdown[f - 1].get(ROOM_TYPE_FIELD[room_type]) or 0)
+            if 1 <= index <= available:
+                tweaks.append({"floor": f, "room_type": room_type, "index": index,
+                               "size": size, "shape": shape})
+                matched = True
+        if not matched:
+            problems.append(f"There is no {ROOM_TYPE_NAME[room_type]} {index} to change.")
+    return tweaks, problems
+
+
+def _apply_room_tweaks(breakdown: list, tweaks: list) -> bool:
+    """Save size/shape changes inside each floor as "roomTweaks".
+    They travel with the floor data, so they stay for the next edits.
+    Returns True if anything really changed."""
+    changed = False
+    for t in tweaks:
+        floor = breakdown[t["floor"] - 1]
+        store = floor.get("roomTweaks")
+        store = dict(store) if isinstance(store, dict) else {}
+
+        key = f"{t['room_type']}:{t['index']}"
+        entry = dict(store.get(key) or {})
+        before = dict(entry)
+
+        if t["size"] == "reset":
+            entry.pop("size", None)
+        elif t["size"]:
+            try:
+                current = float(entry.get("size") or 1.0)
+            except (TypeError, ValueError):
+                current = 1.0
+            entry["size"] = round(
+                max(SIZE_MIN, min(SIZE_MAX, current * SIZE_STEPS[t["size"]])), 3
+            )
+
+        if t["shape"] == "square":
+            entry["square"] = True
+        elif t["shape"] == "reset":
+            entry.pop("square", None)
+
+        if entry != before:
+            changed = True
+
+        if entry:
+            store[key] = entry
+        else:
+            store.pop(key, None)
+
+        if store:
+            floor["roomTweaks"] = store
+        else:
+            floor.pop("roomTweaks", None)
+    return changed
 
 
 def merge_doors(existing, new) -> list:
@@ -216,14 +341,21 @@ def apply_changes(breakdown: list, parsed: dict) -> dict:
             old = str(new[i].get("extraRoomNote") or "").strip()
             new[i]["extraRoomNote"] = f"{old}, {note}" if old else note
 
-    doors, problems = _valid_doors(parsed, new)
+    doors, door_problems = _valid_doors(parsed, new)
+
+    # Size and shape changes are checked against the room counts AFTER the
+    # count changes above, so "add a kitchen and make it square" works.
+    tweaks, tweak_problems = _valid_room_tweaks(parsed, new)
+    tweaked = _apply_room_tweaks(new, tweaks)
+
+    problems = door_problems + tweak_problems
 
     summary = _clean_text(str(parsed.get("summary") or ""))[:200]
     unsupported = _clean_text(str(parsed.get("unsupported") or ""))[:300]
     if problems:
         unsupported = f"{unsupported} {' '.join(problems)}".strip()
     return {
-        "applied": changed or bool(doors),
+        "applied": changed or tweaked or bool(doors),
         "doors": doors,
         "rearrange": parsed.get("rearrange") is True,
         "breakdown": new,

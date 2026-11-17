@@ -19,6 +19,9 @@ import joblib
 import pandas as pd
  
 from app.zone_data import get_zone
+from app.regulations import evaluate_rules, max_coverage
+
+GROUND_FLOOR_SHARE = 0.70
  
 logger = logging.getLogger(__name__)
  
@@ -109,9 +112,16 @@ class MLService:
         zone_factor = zone["factor"]
         zone_name = zone["name"]
         zone_type = zone["type"]
-        max_plot_coverage_pct = zone["max_coverage"]
-        ground_floor_area_sqm = land_area_sqm * max_plot_coverage_pct
-        permissible_fa_sqm = land_area_sqm * zone_factor
+        max_plot_coverage_pct = max_coverage(zone_code, building_purpose)
+        ground_floor_area_sqm = (
+            land_area_sqm * max_plot_coverage_pct * GROUND_FLOOR_SHARE
+        )
+        rules = evaluate_rules(
+            zone_code, zone_factor, building_purpose, land_area_sqm,
+            road_width_m, floors_requested, ground_floor_area_sqm,
+            road_frontage_m,
+        )
+        permissible_fa_sqm = rules["permissible_fa_sqm"]
         requested_total_fa_sqm = ground_floor_area_sqm * floors_requested
         fa_utilisation_ratio = min(
             requested_total_fa_sqm / max(permissible_fa_sqm, 0.001), 10.0
@@ -180,6 +190,9 @@ class MLService:
         feas_proba = self.model_feasibility.predict_proba(input_data)[0]
         feasibility = self.label_encoders["Feasibility"].inverse_transform([feas_encoded])[0]
         feas_confidence = round(float(max(feas_proba)) * 100, 1)
+
+        if rules["blockers"]:
+            feasibility = "Not Feasible"
  
         # ── Predict Layout + Structure (only if Feasible) ───────────────────
         if feasibility == "Feasible":
@@ -214,6 +227,9 @@ class MLService:
             "zone_type": zone_type,
             "area_name": area_name,
             "ground_floor_area_sqm": round(ground_floor_area_sqm, 2),
+            "rule_blockers": rules["blockers"],
+            "rule_warnings": rules["warnings"],
+            "rule_suggestions": rules["suggestions"],
         }
  
  

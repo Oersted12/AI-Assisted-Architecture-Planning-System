@@ -104,25 +104,30 @@ def resolve_zone(lat: float, lng: float, address: str) -> tuple[str, str, bool]:
             row = cur.fetchone()
 
     if row is None:
+        logger.warning("No zone polygon for lat=%s, lng=%s", lat, lng)
         raise ValueError(
-            f"No zone polygon found containing point (lat={lat}, lng={lng}). "
-            f"This coordinate may be outside the digitized Jaffna District extent."
+            "This location is outside Jaffna District. "
+            "This tool only works for plots inside Jaffna District. "
+            "Please move the pin to a place inside Jaffna."
         )
 
     zone_name = row[0]
 
     if zone_name in NON_BUILDABLE_ZONE_NAMES:
         raise ValueError(
-            f"Point (lat={lat}, lng={lng}) falls inside '{zone_name}', which has "
-            f"no buildable UDA zone code. This plot cannot be assessed."
+            "This point is on a water body, so nothing can be built here. "
+            "Please move the pin onto land."
         )
 
     zone_code = ZONE_NAME_TO_CODE.get(zone_name)
     if zone_code is None:
+        logger.error(
+            "Zone name '%s' has no mapping. Add it to _MANUAL_NAME_OVERRIDES.",
+            zone_name,
+        )
         raise ValueError(
-            f"Resolved zone name '{zone_name}' has no mapping to a ZONE_DATA code. "
-            f"Add an entry to ZONE_NAME_TO_CODE / _MANUAL_NAME_OVERRIDES in "
-            f"zone_resolver.py. Valid codes: {list(ZONE_DATA.keys())}"
+            "We could not find the planning rules for this spot yet. "
+            "Please try a point a little further away."
         )
 
     if zone_code not in ZONE_DATA:
@@ -141,3 +146,29 @@ def resolve_zone(lat: float, lng: float, address: str) -> tuple[str, str, bool]:
         )
 
     return zone_code, area_name, matched
+
+def check_location(lat: float, lng: float) -> str:
+    """Quick check used on the map page. Returns the zone name, or raises ValueError."""
+    query = """
+        SELECT zone
+        FROM jaffna_zones
+        WHERE ST_Contains(geom, ST_SetSRID(ST_MakePoint(%s, %s), 4326))
+        LIMIT 1;
+    """
+    with _get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, (lng, lat))
+            row = cur.fetchone()
+
+    if row is None:
+        raise ValueError(
+            "This location is outside Jaffna District. "
+            "This tool only works for plots inside Jaffna District. "
+            "Please move the pin to a place inside Jaffna."
+        )
+    if row[0] in NON_BUILDABLE_ZONE_NAMES:
+        raise ValueError(
+            "This point is on a water body, so nothing can be built here. "
+            "Please move the pin onto land."
+        )
+    return row[0]

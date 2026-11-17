@@ -125,9 +125,80 @@ const ResultsPage = ({ result, inputs, address, onEdit, onNewPlan }) => {
           {feasible ? "✅ Feasible" : "❌ " + result.feasibility}
         </div>
         <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
-          Confidence: {result.feas_confidence}%
+          {(result.rule_blockers || []).length > 0
+            ? "Decided by the UDA rules"
+            : `Confidence: ${result.feas_confidence}%`}
         </div>
       </div>
+
+      {/* Why: UDA rules that block the plan */}
+      {(result.rule_blockers || []).length > 0 && (
+        <div style={{
+          ...card,
+          background: "#FDEDEC",
+          borderLeft: "5px solid #C0392B",
+          padding: 16,
+        }}>
+          <div style={{ fontWeight: "bold", color: "#C0392B", fontSize: 13 }}>
+            ❌ Why this plan is not feasible
+          </div>
+          <ul style={{
+            margin: "8px 0 0", paddingLeft: 18,
+            fontSize: 12, color: "#7B241C", lineHeight: 1.6,
+          }}>
+            {result.rule_blockers.map((b, i) => <li key={i}>{b}</li>)}
+          </ul>
+          {(result.rule_suggestions || []).length > 0 && (
+            <div style={{
+              marginTop: 10, padding: 10, borderRadius: 8,
+              background: "#E9F7EF", fontSize: 12,
+              color: "#1E8449", lineHeight: 1.6,
+            }}>
+              <div style={{ fontWeight: "bold" }}>💡 Try this</div>
+              <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                {result.rule_suggestions.map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+            </div>
+          )}3
+        </div>
+      )}
+
+      {/* Model unsure, no rule blocked it */}
+      {!feasible && (result.rule_blockers || []).length === 0 && (
+        <div style={{
+          ...card,
+          background: "#FEF5E7",
+          borderLeft: "5px solid #F0A500",
+          padding: 16,
+        }}>
+          <div style={{ fontWeight: "bold", color: "#9A6700", fontSize: 13 }}>
+            ⚠️ No single rule blocked this plan
+          </div>
+          <div style={{ fontSize: 12, color: "#7D5A00", marginTop: 4, lineHeight: 1.5 }}>
+            The AI model was not sure about this plan. Please check it with the UDA.
+          </div>
+        </div>
+      )}
+
+      {/* Notes to check (these do not block the plan) */}
+      {(result.rule_warnings || []).length > 0 && (
+        <div style={{
+          ...card,
+          background: "#FEF5E7",
+          borderLeft: "5px solid #F0A500",
+          padding: 16,
+        }}>
+          <div style={{ fontWeight: "bold", color: "#9A6700", fontSize: 13 }}>
+            ⚠️ Things to check
+          </div>
+          <ul style={{
+            margin: "8px 0 0", paddingLeft: 18,
+            fontSize: 12, color: "#7D5A00", lineHeight: 1.6,
+          }}>
+            {result.rule_warnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        </div>
+      )}
 
       {/* Design summary */}
       {feasible && (

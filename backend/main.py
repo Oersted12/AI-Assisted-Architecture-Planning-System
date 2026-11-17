@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.schemas import PredictRequest, PredictResponse
-from app.zone_resolver import resolve_zone
+from app.zone_resolver import resolve_zone, check_location
 from app.payload_transform import build_predict_plan_kwargs, aggregate_rooms
 from app.ml_service import ml_service
 from app.blueprint.generator import generate_all_floor_blueprints, OUTPUT_DIR
@@ -44,6 +44,17 @@ app.mount("/blueprints", StaticFiles(directory=str(OUTPUT_DIR)), name="blueprint
 @app.get("/")
 def health_check():
     return {"status": "ok", "service": "AI Architecture Planning API"}
+
+
+@app.get("/check-location")
+def check_location_endpoint(lat: float, lng: float):
+    try:
+        zone_name = check_location(lat, lng)
+        return {"ok": True, "zone_name": zone_name}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not check this location. Please try again.")
 
 
 @app.post("/predict", response_model=PredictResponse)

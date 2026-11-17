@@ -41,6 +41,20 @@ export const predictPlan = async (payload) => {
   return res.json();
 };
 
+// Checks that the pin is inside Jaffna District (used on the map page)
+export const checkLocation = async (lat, lng) => {
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/check-location?lat=${lat}&lng=${lng}`);
+  } catch {
+    throw new Error(
+      "Cannot reach the server. Make sure the backend is running on port 8000."
+    );
+  }
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+};
+
 // Blueprint paths come back like "/blueprints/floor_abc.png"
 export const blueprintUrl = (path) =>
   path.startsWith("http") ? path : `${API_BASE}${path}`;

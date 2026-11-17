@@ -4,6 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { MapContainer, TileLayer, useMapEvents } from "react-leaflet";
 import { reverseGeocode } from "../services/nominatim";
 import { isInJaffna } from "../utils/jaffnaBounds";
+import { checkLocation } from "../services/api";
 import "leaflet/dist/leaflet.css";
 
 const FixedPin = () => (
@@ -41,6 +42,8 @@ const MapPicker = ({ initialLat, initialLng, onLocationConfirmed, onBack }) => {
   const [lat, setLat]               = useState(initialLat);
   const [lng, setLng]               = useState(initialLng);
   const [loading, setLoading]       = useState(true);
+  const [checking, setChecking]     = useState(false); // true while we check the zone
+  const [locError, setLocError]     = useState("");    // message if the pin is not allowed
   const debounceRef                 = useRef(null);
   const requestId                   = useRef(0);       // used to ignore old (stale) answers
 
@@ -78,17 +81,27 @@ const MapPicker = ({ initialLat, initialLng, onLocationConfirmed, onBack }) => {
     setLat(newLat);
     setLng(newLng);
     setAddressOk(false);   // old address no longer matches the pin
+    setLocError("");       // old error no longer applies
     setLoading(true);
     requestId.current++;   // cancel any older request
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchAddress(newLat, newLng), 600);
   }, [fetchAddress]);
 
-  const handleConfirm = () => {
-    onLocationConfirmed({ lat, lng, address });
+  const handleConfirm = async () => {
+    setLocError("");
+    setChecking(true);
+    try {
+      await checkLocation(lat, lng);
+      onLocationConfirmed({ lat, lng, address });
+    } catch (e) {
+      setLocError(e.message);
+    } finally {
+      setChecking(false);
+    }
   };
 
-  const canConfirm = addressOk && !loading;
+  const canConfirm = addressOk && !loading && !checking;
   const outside    = !isInJaffna(lat, lng);
 
   return (
@@ -221,6 +234,22 @@ const MapPicker = ({ initialLat, initialLng, onLocationConfirmed, onBack }) => {
         right:    16,
         zIndex:   1000,
       }}>
+        {locError && (
+          <div style={{
+            background:   "#FEF5E7",
+            borderLeft:   "5px solid #F0A500",
+            color:        "#7D5A00",
+            fontSize:     13,
+            padding:      "10px 14px",
+            borderRadius: 10,
+            marginBottom: 10,
+            lineHeight:   1.5,
+            fontFamily:   "Arial, sans-serif",
+            boxShadow:    "0 2px 12px rgba(0,0,0,0.2)",
+          }}>
+            ⚠️ {locError}
+          </div>
+        )}
         <button
           onClick={handleConfirm}
           disabled={!canConfirm}
@@ -238,7 +267,7 @@ const MapPicker = ({ initialLat, initialLng, onLocationConfirmed, onBack }) => {
             boxShadow:    "0 4px 12px rgba(26,60,94,0.4)",
           }}
         >
-          ✅ Confirm This Location
+          {checking ? "Checking location..." : "✅ Confirm This Location"}
         </button>
       </div>
 

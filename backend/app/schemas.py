@@ -32,13 +32,21 @@ class RoomsStandardWithOverrides(BaseModel):
     # e.g. differentFloors=[10] becomes overrides={"10": {...}})
     overrides: Dict[str, RoomConfig] = Field(default_factory=dict)
 
-    @field_validator("overrides")
+    @field_validator("overrides", mode="before")
     @classmethod
-    def keys_must_be_numeric(cls, v: Dict[str, RoomConfig]) -> Dict[str, RoomConfig]:
-        for key in v:
-            if not key.isdigit():
-                raise ValueError(f"Override key '{key}' is not a valid floor number")
-        return v
+    def keys_must_be_numeric(cls, v: Any) -> Dict[str, RoomConfig]:
+        if v is None:
+            return {}
+        if not isinstance(v, dict):
+            raise TypeError("Overrides must be a mapping of floor numbers to room configs")
+
+        normalized: Dict[str, RoomConfig] = {}
+        for raw_key, value in v.items():
+            key = str(raw_key).strip()
+            if not key or not key.isdigit() or int(key) < 1:
+                raise ValueError(f"Override key '{raw_key}' is not a valid floor number")
+            normalized[key] = value
+        return normalized
 
 
 class RoomsPerFloor(BaseModel):
@@ -110,6 +118,9 @@ class PredictResponse(BaseModel):
     per_floor_breakdown: Optional[List[Dict[str, Any]]] = None
     # False when the area name was not recognized and a default was used
     area_matched: bool = True
+    rule_blockers: List[str] = Field(default_factory=list)
+    rule_warnings: List[str] = Field(default_factory=list)
+    rule_suggestions: List[str] = Field(default_factory=list)
 
     # Echoed back so the frontend can show it without re-deriving anything
     area_name: str

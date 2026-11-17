@@ -286,6 +286,12 @@ def build_pdf(result: dict, inputs: dict, blueprint_dir) -> bytes:
     ]
     if inputs.get("roadFrontage"):
         summary.append(("Road frontage", _num(inputs.get("roadFrontage"), " m", 2)))
+    side_names = {"left": "left side", "right": "right side", "top": "back side"}
+    for road in inputs.get("extraRoads") or []:
+        summary.append((
+            "Second road",
+            f"{road.get('label', 'Road')} on the {side_names.get(road.get('side'), '-')}",
+        ))
     story += _kt(site_title, _kv_table(summary))
 
     # Feasibility
@@ -296,7 +302,10 @@ def build_pdf(result: dict, inputs: dict, blueprint_dir) -> bytes:
             f'<font color="{colour.hexval()}">{"Feasible" if feasible else _p(result.get("feasibility", "Not Feasible"))}</font>',
             S["status"]),
           ],
-         [Paragraph(f"Model confidence: {_num(result.get('feas_confidence'), '%', 1)}", S["small"])]],
+         [Paragraph(
+             "Decided by the UDA rules" if result.get("rule_blockers")
+             else f"Model confidence: {_num(result.get('feas_confidence'), '%', 1)}",
+             S["small"])]],
         colWidths=[FRAME_W],
     )
     status.setStyle(TableStyle([
@@ -307,6 +316,19 @@ def build_pdf(result: dict, inputs: dict, blueprint_dir) -> bytes:
         ("BOTTOMPADDING", (0, -1), (-1, -1), 10),
     ]))
     story += _kt("Feasibility Result", status)
+
+    # UDA rule check (reasons and notes from the rules)
+    blockers = result.get("rule_blockers") or []
+    warnings = result.get("rule_warnings") or []
+    if blockers or warnings:
+        items = []
+        if blockers:
+            items.append(Paragraph("<b>Rules that block this plan</b>", S["body"]))
+            items += [Paragraph("- " + _p(b), S["body"]) for b in blockers]
+        if warnings:
+            items.append(Paragraph("<b>Things to check with the UDA</b>", S["body"]))
+            items += [Paragraph("- " + _p(w), S["body"]) for w in warnings]
+        story += _kt("UDA Rule Check", *items)
 
     # Zone and area
     story += _kt("Zone and Floor Area", _kv_table([

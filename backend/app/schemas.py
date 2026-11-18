@@ -10,11 +10,11 @@ from pydantic import BaseModel, Field, field_validator
 
 # ── Room configuration (matches defaultFloorRooms() in the frontend) ─────────
 class RoomConfig(BaseModel):
-    bedrooms: int = 0
-    bathrooms: int = 1
-    kitchens: int = 0
-    visitorHalls: int = 0
-    extraRooms: int = 0
+    bedrooms: int = Field(default=0, ge=0)
+    bathrooms: int = Field(default=1, ge=0)
+    kitchens: int = Field(default=0, ge=0)
+    visitorHalls: int = Field(default=0, ge=0)
+    extraRooms: int = Field(default=0, ge=0)
     extraRoomNote: str = ""
     roomTweaks: Dict[str, Any] = Field(default_factory=dict)
 
@@ -43,9 +43,12 @@ class RoomsStandardWithOverrides(BaseModel):
         normalized: Dict[str, RoomConfig] = {}
         for raw_key, value in v.items():
             key = str(raw_key).strip()
-            if not key or not key.isdigit() or int(key) < 1:
+            if not key or not key.isdigit():
                 raise ValueError(f"Override key '{raw_key}' is not a valid floor number")
-            normalized[key] = value
+            floor_number = int(key)
+            if floor_number < 1:
+                raise ValueError(f"Override key '{raw_key}' is not a valid floor number")
+            normalized[str(floor_number)] = value
         return normalized
 
 
@@ -66,19 +69,19 @@ class ExtraRoad(BaseModel):
 
 class PredictRequest(BaseModel):
     # Location (from MapPicker confirm)
-    lat: float
-    lng: float
+    lat: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    lng: float = Field(ge=-180, le=180, allow_inf_nan=False)
     address: str
-    roadFrontage: float | None = None
+    roadFrontage: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     extraRoads: List[ExtraRoad] = Field(default_factory=list, max_length=3)
 
     # Land details (Step 1)
-    landLength: float          # metres, already converted from ft if needed
-    landWidth: float           # metres
-    landAreaSqm: float
-    landAreaPerch: float
+    landLength: float = Field(gt=0, allow_inf_nan=False)          # metres, already converted from ft if needed
+    landWidth: float = Field(gt=0, allow_inf_nan=False)           # metres
+    landAreaSqm: float = Field(gt=0, allow_inf_nan=False)
+    landAreaPerch: float = Field(gt=0, allow_inf_nan=False)
     landShape: Literal["Rectangular", "Square", "L-Shape", "Corner Plot", "Irregular"]
-    roadWidth: float           # metres, from ROAD_TYPES value
+    roadWidth: float = Field(gt=0, allow_inf_nan=False)           # metres, from ROAD_TYPES value
     roadLabel: str
 
     # Building details (Step 2)
@@ -94,7 +97,7 @@ class PredictRequest(BaseModel):
     notes: str = ""
 
     # Not yet on the frontend form — defaults applied until added
-    parkingSpaces: int = 0
+    parkingSpaces: int = Field(default=0, ge=0)
 
 
 # ── Prediction response (mirrors predict_plan()'s return dict) ───────────────
@@ -135,4 +138,4 @@ class RegenerateBlueprintRequest(BaseModel):
     roadLabel: str
     perFloorBreakdown: List[RoomConfig]
     extraRoads: List[Dict[str, Any]] = Field(default_factory=list)
-    variant: int = 0
+    variant: int = Field(default=0, ge=0)

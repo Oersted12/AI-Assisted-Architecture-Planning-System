@@ -1,70 +1,111 @@
-# Getting Started with Create React App
+# AI-Assisted Architecture Planning System – Web App
+
+React web app for the AI-Assisted Architecture Planning System for Jaffna District.
+The user picks a plot on a map, enters land details, and gets a feasibility result, a floor plan blueprint, and a plain-language explanation.
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- Pick the plot location with a drag-map (fixed centre pin)
+- Address lookup with Nominatim / OpenStreetMap
+- Land details form (land size, road frontage, land shape, layout mode: same / almost / custom)
+- Corner plot support (second road side and type)
+- Results page with:
+  - Feasibility, design type, and structure type
+  - UDA zone details and rule warnings
+  - "Try this" suggestions when a rule blocks the plan
+  - Generated floor plan blueprint
+  - English explanation written by Gemini
+- Blueprint edit box (room counts, room size, square rooms, extra doors, new arrangement)
+- Regenerate button and previous blueprint button
+- PDF report download
+- Location history saved in the browser (localStorage)
+
+## Project Structure
+
+```
+ai-architecture-web/
+├── public/
+└── src/
+    ├── components/
+    │   ├── BlueprintSection.jsx
+    │   └── MapPicker.jsx
+    ├── pages/
+    │   ├── Home.jsx
+    │   ├── LandDetailsForm.jsx
+    │   └── ResultsPage.jsx
+    ├── services/
+    │   ├── api.js          # calls the backend (/predict, /edit-blueprint, /download-pdf)
+    │   └── nominatim.js    # address lookup (OpenStreetMap, 1 request/sec, cached)
+    ├── App.js
+    ├── App.css
+    └── index.js
+```
+
+## Requirements
+
+- Node.js (LTS version)
+- npm
+- The backend must be running (see the `backend` folder README)
+
+## Getting Started
+
+1. Open a terminal in the `ai-architecture-web` folder.
+2. Install packages:
+   ```
+   npm install
+   ```
+3. Start the backend first (see the backend README).
+4. Start the web app:
+   ```
+   npm start
+   ```
+5. Open http://localhost:3000 in your browser.
+
+## Available Scripts
 
 ### `npm start`
 
-Runs the app in the development mode.\
+Runs the app in development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+The page reloads when you make changes.\
+You may also see lint errors in the console.
 
 ### `npm test`
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Launches the test runner in interactive watch mode.\
+See [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
 
 ### `npm run build`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Builds the app for production into the `build` folder.\
+It bundles React in production mode and optimizes the build for best performance.
 
 The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+See [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
 
 ### `npm run eject`
 
 **Note: this is a one-way operation. Once you `eject`, you can't go back!**
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+This removes the single build dependency and copies all config files (webpack, Babel, ESLint, etc.) into your project. You do not need to use it.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## Notes
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+- The model and zone map only cover **Jaffna District**. A location outside Jaffna returns a "no zone polygon" error.
+- Nominatim is limited to 1 request per second. The app already throttles requests and caches results.
+
+## Known Issues / To Do
+
+- Address sometimes shows as "Fetching address..." when the location is confirmed
+- Friendlier message for locations outside Jaffna
+- Road width layers (Nominatim / Overpass)
+- Custom door adding after the blueprint is shown
+- Mobile app (React Native Expo) not started yet
 
 ## Learn More
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started)
+- [React documentation](https://reactjs.org/)

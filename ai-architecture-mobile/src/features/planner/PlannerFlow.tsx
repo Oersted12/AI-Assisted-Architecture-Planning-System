@@ -143,6 +143,8 @@ export default function PlannerFlow() {
       <RoomSetupScreen
         value={building}
         onChange={setBuilding}
+        land={land}
+        onLandChange={setLand}
         onBack={() => setStep('land')}
         onSubmit={() => void generatePlan()}
         loading={generating}

@@ -1,0 +1,60 @@
+import type {
+  PredictRequest,
+  PredictResponse,
+  RoomConfig,
+} from '../src/types/api';
+
+export const zeroRooms: RoomConfig = {
+  bedrooms: 0,
+  bathrooms: 0,
+  kitchens: 0,
+  visitorHalls: 0,
+  extraRooms: 0,
+  extraRoomNote: '',
+};
+
+export const validRequest: PredictRequest = {
+  lat: 9.66,
+  lng: 80.02,
+  address: 'Chunnakam, Jaffna, Sri Lanka',
+  landLength: 20,
+  landWidth: 15,
+  roadFrontage: null,
+  extraRoads: [],
+  landAreaSqm: 300,
+  landAreaPerch: 300 / 25.29,
+  landShape: 'Rectangular',
+  roadWidth: 6,
+  roadLabel: 'Local Road',
+  purpose: 'House',
+  floors: 1,
+  layoutMode: 'same',
+  rooms: { type: 'same', data: zeroRooms },
+  notes: '',
+  parkingSpaces: 0,
+};
+
+export const validResult: PredictResponse = {
+  feasibility: 'Feasible',
+  feas_confidence: 92,
+  layout_type: 'Linear',
+  layout_confidence: 88,
+  structure_type: 'Reinforced Concrete',
+  struct_confidence: 91,
+  land_area_sqm: 300,
+  permissible_fa_sqm: 420,
+  requested_fa_sqm: 120,
+  fa_utilisation_ratio: 120 / 420,
+  ground_floor_area_sqm: 120,
+  blueprints: { '1': '/blueprints/floor_1.png' },
+  zone_code: 'R2',
+  zone_name: 'Medium Density Mixed Development',
+  zone_type: 'Residential',
+  explanation: 'A **good** plan.',
+  per_floor_breakdown: [zeroRooms],
+  area_matched: true,
+  rule_blockers: [],
+  rule_warnings: [],
+  rule_suggestions: [],
+  area_name: 'Chunnakam',
+};

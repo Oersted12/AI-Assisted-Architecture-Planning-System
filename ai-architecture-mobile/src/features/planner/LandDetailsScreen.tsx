@@ -42,13 +42,6 @@ export function LandDetailsScreen({
   const widthMetres = value.unit === 'ft' ? width * METRES_PER_FOOT : width;
   const area = lengthMetres * widthMetres;
   const perch = area / SQUARE_METRES_PER_PERCH;
-  const frontageNumber = value.frontage.trim() ? Number(value.frontage) : null;
-  const frontageMetres =
-    frontageNumber === null
-      ? null
-      : value.unit === 'ft'
-        ? frontageNumber * METRES_PER_FOOT
-        : frontageNumber;
 
   const updateRoad = (label: string, extra = false) => {
     const road = ROAD_TYPES.find((item) => item.label === label);
@@ -74,19 +67,6 @@ export function LandDetailsScreen({
     if (!Number.isFinite(area) || area < MIN_LAND_AREA_SQM) {
       setError(`Land area seems too small (minimum ~${MIN_LAND_AREA_SQM} sqm).`);
       return;
-    }
-    if (frontageNumber !== null) {
-      if (!Number.isFinite(frontageNumber) || frontageNumber <= 0) {
-        setError('Road frontage must be a positive finite number.');
-        return;
-      }
-      if (
-        frontageMetres !== null &&
-        frontageMetres > Math.max(lengthMetres, widthMetres)
-      ) {
-        setError("Frontage cannot be longer than the plot's longest side.");
-        return;
-      }
     }
     setError('');
     onContinue();
@@ -159,13 +139,6 @@ export function LandDetailsScreen({
           onChange={(label) => updateRoad(label)}
         />
 
-        <Text style={styles.label}>Road frontage ({value.unit}, optional)</Text>
-        <PlannerInput
-          value={value.frontage}
-          onChangeText={(frontage) => onChange({ ...value, frontage })}
-          keyboardType="decimal-pad"
-          placeholder={value.unit === 'm' ? 'e.g. 12' : 'e.g. 40'}
-        />
       </Card>
 
       {value.shape === 'Corner Plot' ? (

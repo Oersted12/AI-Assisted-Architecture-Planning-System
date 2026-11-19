@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import {
   BUILDING_PURPOSES,
   MAX_FLOORS,
+  METRES_PER_FOOT,
 } from '@/constants/architecture';
 import {
   ActionButton,
@@ -19,8 +20,9 @@ import {
 } from '@/features/planner/components';
 import {
   copyRooms,
+  DEFAULT_ROOMS,
 } from '@/features/planner/types';
-import type { BuildingDraft } from '@/features/planner/types';
+import type { BuildingDraft, LandDraft } from '@/features/planner/types';
 import type { RoomConfig } from '@/types/api';
 
 const LAYOUT_OPTIONS = [
@@ -32,6 +34,8 @@ const LAYOUT_OPTIONS = [
 export function RoomSetupScreen({
   value,
   onChange,
+  land,
+  onLandChange,
   onBack,
   onSubmit,
   loading,
@@ -39,18 +43,21 @@ export function RoomSetupScreen({
 }: {
   value: BuildingDraft;
   onChange: (value: BuildingDraft) => void;
+  land: LandDraft;
+  onLandChange: (value: LandDraft) => void;
   onBack: () => void;
   onSubmit: () => void;
   loading: boolean;
   error: string;
 }) {
   const [localError, setLocalError] = useState('');
+  const [frontageError, setFrontageError] = useState('');
 
   const changeFloorCount = (floors: number) => {
     const perFloorRooms = [...value.perFloorRooms];
     if (floors > perFloorRooms.length) {
       for (let index = perFloorRooms.length; index < floors; index += 1) {
-        perFloorRooms.push(copyRooms(value.standardRooms));
+        perFloorRooms.push(copyRooms(DEFAULT_ROOMS));
       }
     } else {
       perFloorRooms.length = floors;
@@ -105,6 +112,30 @@ export function RoomSetupScreen({
       return;
     }
     setLocalError('');
+    const frontageInput = land.frontage.trim();
+    if (frontageInput) {
+      const frontage = Number(frontageInput);
+      const frontageMetres =
+        land.unit === 'ft' ? frontage * METRES_PER_FOOT : frontage;
+      const length = Number(land.length);
+      const width = Number(land.width);
+      const lengthMetres =
+        land.unit === 'ft' ? length * METRES_PER_FOOT : length;
+      const widthMetres =
+        land.unit === 'ft' ? width * METRES_PER_FOOT : width;
+
+      if (!Number.isFinite(frontageMetres) || frontageMetres <= 0) {
+        setFrontageError('Frontage must be more than 0');
+        return;
+      }
+      if (frontageMetres > Math.max(lengthMetres, widthMetres)) {
+        setFrontageError(
+          "Frontage cannot be longer than the plot's longest side",
+        );
+        return;
+      }
+    }
+    setFrontageError('');
     onSubmit();
   };
 
@@ -232,6 +263,20 @@ export function RoomSetupScreen({
           placeholder="e.g. Rooftop floor has a terrace garden and a small gym"
           multiline
         />
+        <Text style={styles.label}>{`Road Frontage (${land.unit}) - optional`}</Text>
+        <Text style={styles.hint}>
+          Length of the plot side that touches the road. Leave empty if unsure.
+        </Text>
+        <PlannerInput
+          value={land.frontage}
+          onChangeText={(frontage) => {
+            onLandChange({ ...land, frontage });
+            setFrontageError('');
+          }}
+          keyboardType="decimal-pad"
+          placeholder={land.unit === 'm' ? 'e.g. 12' : 'e.g. 40'}
+        />
+        {frontageError ? <InlineMessage>{frontageError}</InlineMessage> : null}
       </Card>
 
       {localError ? <InlineMessage>{localError}</InlineMessage> : null}

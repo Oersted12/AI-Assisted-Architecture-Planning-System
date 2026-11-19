@@ -40,7 +40,7 @@ export interface BuildingDraft {
 
 export const DEFAULT_ROOMS: RoomConfig = {
   bedrooms: 0,
-  bathrooms: 1,
+  bathrooms: 0,
   kitchens: 0,
   visitorHalls: 0,
   extraRooms: 0,

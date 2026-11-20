@@ -98,10 +98,19 @@ def mock_jaffna_zone(monkeypatch, matched=True, area_name="Jaffna Town"):
 def test_predict_valid_jaffna_plot_returns_rule_and_prediction_fields(monkeypatch):
     mock_jaffna_zone(monkeypatch)
     stub_predict_and_gemini(monkeypatch, feasibility="Feasible")
+    original_aggregate_rooms = main.aggregate_rooms
+    aggregate_calls = []
+
+    def track_aggregate_rooms(request):
+        aggregate_calls.append(request)
+        return original_aggregate_rooms(request)
+
+    monkeypatch.setattr(main, "aggregate_rooms", track_aggregate_rooms)
 
     response = client.post("/predict", json=predict_payload())
 
     assert response.status_code == 200
+    assert len(aggregate_calls) == 1
     body = response.json()
     for field in (
         "feasibility",
@@ -175,6 +184,15 @@ class _AlwaysFeasibleModel:
         return [[0.9, 0.1]]
 
 
+class _FrontageCaptureModel(_AlwaysFeasibleModel):
+    def __init__(self):
+        self.frontage = None
+
+    def predict(self, input_data):
+        self.frontage = input_data.iloc[0]["Road_Frontage_m"]
+        return [0]
+
+
 class _Encoder:
     def __init__(self, classes):
         self.classes_ = classes
@@ -220,6 +238,48 @@ def test_predict_rule_blocker_overrides_feasible_model_prediction(monkeypatch):
     body = response.json()
     assert body["feasibility"] == "Not Feasible"
     assert any("9 m or more" in blocker for blocker in body["rule_blockers"])
+
+
+def test_missing_frontage_uses_model_sentinel_and_skips_frontage_rule(monkeypatch):
+    model = _FrontageCaptureModel()
+    monkeypatch.setattr(main.ml_service, "model_feasibility", model)
+    monkeypatch.setattr(main.ml_service, "model_layout", model)
+    monkeypatch.setattr(main.ml_service, "model_structure", model)
+    monkeypatch.setattr(
+        main.ml_service,
+        "label_encoders",
+        {
+            "Area_Name": _Encoder(["Jaffna Town"]),
+            "Zone_Code": _Encoder(["R2"]),
+            "Zone_Name": _Encoder(["Medium Density Residential"]),
+            "Zone_Type": _Encoder(["Residential"]),
+            "Land_Shape": _Encoder(["Rectangular"]),
+            "Building_Purpose": _Encoder(["House"]),
+            "Feasibility": _Encoder(["Feasible", "Not Feasible"]),
+            "Layout_Type": _Encoder(["Open"]),
+            "Structure_Type": _Encoder(["Reinforced Concrete"]),
+        },
+    )
+
+    result = main.ml_service.predict_plan(
+        area_name="Jaffna Town",
+        zone_code="R2",
+        land_length_m=20,
+        land_width_m=15,
+        land_shape="Rectangular",
+        road_width_m=9,
+        road_frontage_m=None,
+        building_purpose="House",
+        floors_requested=1,
+        same_floor_layout="Yes",
+        bedrooms=2,
+        bathrooms=1,
+        kitchens=1,
+        parking_spaces=0,
+    )
+
+    assert model.frontage == 0.0
+    assert not any("Road frontage" in warning for warning in result["rule_warnings"])
 
 
 def test_predict_cn3_uses_fifty_percent_plot_coverage(monkeypatch):

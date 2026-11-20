@@ -65,10 +65,10 @@ def predict(request: PredictRequest):
         )
         kwargs = build_predict_plan_kwargs(request, zone_code=zone_code, area_name=area_name)
         result = ml_service.predict_plan(**kwargs)
+        room_data = aggregate_rooms(request)
 
         blueprints = None
         if result["feasibility"] == "Feasible":
-            room_data = aggregate_rooms(request)
             per_floor_breakdown = room_data["extra_context"]["per_floor_breakdown"]
 
             blueprint_files = generate_all_floor_blueprints(
@@ -87,7 +87,6 @@ def predict(request: PredictRequest):
                 for floor_num, filename in blueprint_files.items()
             }
 
-        room_data = aggregate_rooms(request)  # you likely already compute this for blueprints
         explanation = generate_explanation(
             prediction=result,
             purpose=request.purpose,

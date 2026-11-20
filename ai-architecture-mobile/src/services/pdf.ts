@@ -27,7 +27,7 @@ export async function savePdfReport(payload: DownloadPdfRequest): Promise<string
 
   const file = new File(Paths.document, PDF_FILENAME);
   file.create({ intermediates: true, overwrite: true });
-  file.write(new Uint8Array(buffer));
+  await file.write(new Uint8Array(buffer));
   return file.uri;
 }
 

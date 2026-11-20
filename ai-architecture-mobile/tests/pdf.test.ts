@@ -18,7 +18,7 @@ describe('PDF save validation', () => {
   const mockFile = {
     uri: 'file:///app-documents/Building_Plan_Report.pdf',
     create: jest.fn(),
-    write: jest.fn(),
+    write: jest.fn<(...args: [Uint8Array]) => Promise<void>>(),
   };
 
   beforeEach(() => {
@@ -56,5 +56,17 @@ describe('PDF save validation', () => {
       savePdfReport({ result: validResult, inputs: validRequest }),
     ).rejects.toThrow('The server response was not a valid PDF file.');
     expect(mockFile.write).not.toHaveBeenCalled();
+  });
+
+  it('surfaces errors when writing the PDF file fails', async () => {
+    const bytes = new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55]);
+    (
+      downloadPdf as unknown as Mock<(...args: unknown[]) => Promise<ArrayBuffer>>
+    ).mockResolvedValue(bytes.buffer);
+    mockFile.write.mockRejectedValue(new Error('File write failed.'));
+
+    await expect(
+      savePdfReport({ result: validResult, inputs: validRequest }),
+    ).rejects.toThrow('File write failed.');
   });
 });

@@ -95,7 +95,7 @@ class MLService:
         land_width_m: float,
         land_shape: str,
         road_width_m: float,
-        road_frontage_m: float,
+        road_frontage_m: float | None,
         building_purpose: str,
         floors_requested: int,
         same_floor_layout: str,   # "Yes" | "No"
@@ -163,7 +163,11 @@ class MLService:
             "Land_Area_Perch": land_area_perch,
             "Land_Shape": shape_encoded,
             "Road_Width_m": road_width_m,
-            "Road_Frontage_m": road_frontage_m,
+            # The Random Forest requires finite numeric features. Zero marks
+            # unknown frontage; rule checks receive None and skip frontage rules.
+            "Road_Frontage_m": (
+                road_frontage_m if road_frontage_m is not None else 0.0
+            ),
             "Building_Purpose": purpose_encoded,
             "Floors_Requested": floors_requested,
             "Same_Floor_Layout": same_floor_encoded,

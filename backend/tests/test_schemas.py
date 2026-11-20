@@ -8,7 +8,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.payload_transform import aggregate_rooms
+from app.payload_transform import aggregate_rooms, build_predict_plan_kwargs
 from app.schemas import (
     PredictRequest,
     RegenerateBlueprintRequest,
@@ -46,6 +46,14 @@ def valid_predict_payload():
             "overrides": {},
         },
     }
+
+
+def test_missing_optional_frontage_remains_none_in_model_kwargs():
+    request = PredictRequest(**valid_predict_payload())
+
+    kwargs = build_predict_plan_kwargs(request, zone_code="R2", area_name="Test")
+
+    assert kwargs["road_frontage_m"] is None
 
 
 @pytest.mark.parametrize(

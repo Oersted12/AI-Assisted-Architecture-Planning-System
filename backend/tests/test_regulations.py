@@ -141,6 +141,14 @@ def test_minimum_land_extent_is_a_warning_not_a_blocker(
     assert not any("zone minimum" in blocker for blocker in result["blockers"])
 
 
+def test_missing_frontage_does_not_trigger_frontage_warning():
+    result = evaluate_rules(
+        "R2", 1.32, "House", 300, 9.0, 1, 100, road_frontage_m=None
+    )
+
+    assert not any("Road frontage" in warning for warning in result["warnings"])
+
+
 @pytest.mark.parametrize(
     ("ground_floor_area", "expect_coverage_blocker"),
     [(300, False), (300.1, True)],

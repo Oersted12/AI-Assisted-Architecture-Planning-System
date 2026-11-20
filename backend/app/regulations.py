@@ -306,7 +306,8 @@ def max_floors_form_b(zone_factor: float, road_width_m: float) -> int:
 
 def evaluate_rules(zone_code: str, zone_factor: float, purpose: str,
                    land_area_sqm: float, road_width_m: float, floors: int,
-                   ground_floor_area_sqm: float, road_frontage_m=None) -> dict:
+                   ground_floor_area_sqm: float,
+                   road_frontage_m: float | None = None) -> dict:
     """Checks one plan against the rules.
 
     Returns a dict:

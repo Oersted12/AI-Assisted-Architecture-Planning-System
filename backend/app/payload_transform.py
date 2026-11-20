@@ -107,11 +107,7 @@ def build_predict_plan_kwargs(
         "land_width_m": request.landWidth,
         "land_shape": request.landShape,
         "road_width_m": request.roadWidth,
-        "road_frontage_m": (
-            request.roadFrontage
-            if request.roadFrontage is not None
-            else request.landLength
-        ),
+        "road_frontage_m": request.roadFrontage,
         "building_purpose": request.purpose,
         "floors_requested": request.floors,
         "same_floor_layout": room_data["same_floor_layout"],

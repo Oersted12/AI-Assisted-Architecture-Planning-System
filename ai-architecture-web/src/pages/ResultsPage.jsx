@@ -159,7 +159,7 @@ const ResultsPage = ({ result, inputs, address, onEdit, onNewPlan }) => {
                 {result.rule_suggestions.map((s, i) => <li key={i}>{s}</li>)}
               </ul>
             </div>
-          )}3
+          )}
         </div>
       )}
 

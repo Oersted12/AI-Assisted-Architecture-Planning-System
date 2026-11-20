@@ -408,6 +408,27 @@ const LandDetailsForm = ({ location, onSubmit, onBack }) => {
   const areaSqm     = landLengthM * landWidthM;
   const areaPerch   = areaSqm / 25.29;
 
+  const getRoadFrontageError = () => {
+    if (roadFrontage === "") return "";
+    const frontage = parseFloat(roadFrontage);
+    if (!Number.isFinite(frontage) || frontage <= 0)
+      return "Frontage must be more than 0";
+    if (roadFrontageM > Math.max(landLengthM, landWidthM))
+      return "Frontage cannot be longer than the plot's longest side";
+    return "";
+  };
+
+  const validateRoadFrontage = () => {
+    const frontageError = getRoadFrontageError();
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (frontageError) next.roadFrontage = frontageError;
+      else delete next.roadFrontage;
+      return next;
+    });
+    return !frontageError;
+  };
+
   // ── Validation ────────────────────────────────────────────────────────────
   const validateStep1 = () => {
     const e = {};
@@ -417,18 +438,15 @@ const LandDetailsForm = ({ location, onSubmit, onBack }) => {
       e.landWidth = "Please enter a valid width";
     if (landLengthM > 0 && landWidthM > 0 && areaSqm < 50)
       e.area = "Land area seems too small (minimum ~50 sqm)";
-    if (roadFrontage !== "") {
-  if (parseFloat(roadFrontage) <= 0)
-    e.roadFrontage = "Frontage must be more than 0";
-  else if (roadFrontageM > Math.max(landLengthM, landWidthM))
-    e.roadFrontage = "Frontage cannot be longer than the plot's longest side";
-}
+    const frontageError = getRoadFrontageError();
+    if (frontageError) e.roadFrontage = frontageError;
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   const handleNext = () => {
     if (step === 0 && !validateStep1()) return;
+    if (step === 1 && !validateRoadFrontage()) return;
     setStep(step + 1);
   };
 
@@ -439,6 +457,11 @@ const LandDetailsForm = ({ location, onSubmit, onBack }) => {
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = () => {
+    if (!validateRoadFrontage()) {
+      setStep(1);
+      return;
+    }
+
     let rooms;
     if (floors === 1 || layoutMode === "same") {
       rooms = { type: "same", data: standardRooms };
